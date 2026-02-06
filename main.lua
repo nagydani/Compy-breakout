@@ -103,6 +103,7 @@ function reset_round(now)
   sync_phys(now)
   GS.mode = "start"
   GS.assets.text_info:set("Press Space")
+  love.mouse.setRelativeMode(true)
 end
 
 function init_assets()
@@ -116,7 +117,6 @@ function ensure_init()
     init_assets()
     reset_round(timer.getTime())
     GS.init = true
-    love.mouse.setRelativeMode(true)
   end
 end
 
@@ -131,7 +131,7 @@ function process_input(dt)
     )
     paddle.vel.x = dx * GAME.pad_spd
   else
-    paddle.vel.x = GS.mouse.x / dt
+    paddle.vel.x = (GS.mouse.x * GAME.sensitivity) / dt
     GS.mouse.x = 0
   end
 end
@@ -177,6 +177,7 @@ function process_hit(t, obj, idx, t_sim)
       GS.mode = "win"
       GS.assets.text_info:set("YOU WIN! Press R")
       sfx.win()
+      love.mouse.setRelativeMode(false)
     end
   end
   sync_phys(t_imp)
@@ -233,7 +234,6 @@ function actions.start.space()
   local dir_x = (love.math.random(2) == 1) and 1 or -1
   ball.vel.y = -GAME.launch_spd
   ball.vel.x = paddle.vel.x + (GAME.launch_spd * dir_x)
-  sync_phys(timer.getTime())
   GS.mode = "play"
   sfx.beep()
 end
@@ -324,8 +324,9 @@ function love.mousepressed(_, _, button)
 end
 
 function love.keypressed(k)
-  if actions[GS.mode][k] then
-    actions[GS.mode][k]()
+  local action = actions[GS.mode][k]
+  if action then
+    action()
   end
   if k == "escape" then
     love.event.quit()

@@ -84,7 +84,8 @@ GAME = {
   width = 640,
   height = 480,
   launch_spd = 350,
-  pad_spd = 450
+  pad_spd = 450,
+  sensitivity = 0.5
 }
 
 -- Grid Layout
