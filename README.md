@@ -314,3 +314,4 @@ and efficient even on limited hardware.
  * Bounded steps also protect the game 
    from rare GC pauses that can freeze
    animation for a moment.
+
