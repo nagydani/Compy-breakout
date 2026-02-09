@@ -92,6 +92,7 @@ end
 
 function init_level()
   bricks = level.generate()
+  bricks.target = GRID.cols * GRID.rows
   paddle.pos.x = (GAME.width - PADDLE.w) / 2
   paddle.pos.y = PADDLE.y
   paddle.vel.x, paddle.vel.y = 0, 0
@@ -167,42 +168,36 @@ function select_hit_obj(dt)
   return bt, bo, bi
 end
 
-function process_win()
-  for _, b in ipairs(bricks) do
-    if b.pos.y < GRID.bot_y then
-      return 
-    end
-  end
-  GS.mode = "win"
-  GS.assets.text_info:set("YOU WIN!")
-  sfx.win()
-  love.mouse.setRelativeMode(false)
-end
-
 function process_hit(t, obj, idx, t_sim)
-  local t_imp = t_sim + t
-  move_ball_time(t_imp)
+  move_ball_time(t_sim + t)
   bounce(ball, obj, HIT_NORMAL)
   if obj.destruct then
     table.remove(bricks, idx)
-    process_win()
+    if obj.is_target then
+      bricks.target = bricks.target - 1
+    end
+    if bricks.target == 0 then
+      GS.mode = "win"
+      GS.assets.text_info:set("YOU WIN!")
+      sfx.win()
+    end
   end
-  sync_phys(t_imp)
+  sync_phys(t_sim + t)
 end
 
 -- Boundary Logic 
 
 function check_bounds(b, now)
-  local vx, vy = b.vel.x, b.vel.y
-  if b.pos.x < b.radius then
-    b.pos.x, b.vel.x = b.radius, -vx
-  elseif GAME.width - b.radius < b.pos.x then
-    b.pos.x, b.vel.x = GAME.width - b.radius, -vx
+  local r, hit = b.radius, false
+  if b.pos.x < r then
+    b.pos.x, b.vel.x, hit = r, -b.vel.x, true
+  elseif GAME.width - r < b.pos.x then
+    b.pos.x, b.vel.x, hit = GAME.width - r, -b.vel.x, true
   end
-  if b.pos.y < b.radius then
-    b.pos.y, b.vel.y = b.radius, -vy
+  if b.pos.y < r then
+    b.pos.y, b.vel.y, hit = r, -b.vel.y, true
   end
-  if b.vel.x ~= vx or b.vel.y ~= vy then
+  if hit then
     sync_phys(now)
     sfx.knock()
   end
@@ -210,7 +205,7 @@ end
 
 function check_game_over(b)
   if GAME.height < b.pos.y then
-    GS.mode, GS.mouse.x = "over", 0
+    GS.mode = "over"
     GS.assets.text_info:set("GAME OVER")
     love.mouse.setRelativeMode(false)
     sfx.gameover()
