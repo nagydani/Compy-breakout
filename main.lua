@@ -184,11 +184,11 @@ function check_bounds()
   local r = ball.radius
   local max_x = GAME.width - r
   if ball.pos.x < r then
-    ball.pos.x, ball.vel.x = r, -ball.vel.x
-  elseif max_x < ball.pos.x then
-    ball.pos.x, ball.vel.x = max_x, -ball.vel.x
+    ball.pos.x, ball.vel.x = 2 * r - ball.pos.x, -ball.vel.x
+  elseif ball.pos.x > max_x then
+    ball.pos.x, ball.vel.x = 2 * max_x - ball.pos.x, -ball.vel.x
   elseif ball.pos.y < r then
-    ball.pos.y, ball.vel.y = r, -ball.vel.y
+    ball.pos.y, ball.vel.y = 2 * r - ball.pos.y, -ball.vel.y
   else
     return false
   end
