@@ -1,7 +1,5 @@
 -- constants.lua
 
--- Game Settings
-
 GAME = {
   width = 640,
   height = 480,
@@ -10,32 +8,26 @@ GAME = {
   sensitivity = 0.5
 }
 
--- Grid Layout
+cols = 16
+brick_w = GAME.width / cols
+brick_h = brick_w / 2
 
 GRID = {
-  cols = 16,
+  cols = cols,
   rows = 4,
   lives_cols = 8,
-  top_empty_rows = 2
+  top_empty_rows = 2,
+  brick_width = brick_w,
+  brick_height = brick_h,
+  life_width = brick_w * 2,
+  start_y = brick_h * 2,
+  bottom_y = GAME.height - brick_h
 }
 
--- Auto-calculate bricks sizes
-
-GRID.brick_width = GAME.width / GRID.cols
-GRID.brick_height = GRID.brick_width / 2
-GRID.life_width = GRID.brick_width * 2
-
--- Vertical offsets
-
-GRID.start_y = GRID.brick_height * GRID.top_empty_rows
-GRID.bottom_y = GAME.height - GRID.brick_height
-
--- Paddle Geometry 
-
 PADDLE = {
-  width = GRID.brick_width * 2,
-  height = GRID.brick_height,
-  y = GAME.height - (GRID.brick_height * 3)
+  width = brick_w * 2,
+  height = brick_h,
+  y = GAME.height - (brick_h * 3)
 }
 
 BALL = { radius = 6 }

@@ -11,16 +11,14 @@ timer = love.timer
 -- Game State
 
 GS = {
+  init = false,
   mode = "start",
-  tf = nil,
-  init = false
+  tf = nil
 }
 
 GS.assets = { text_info = nil }
 
 GS.mouse = zero2d()
-
-HIT_NORMAL = zero2d()
 
 -- Entities
 
@@ -44,16 +42,6 @@ ball = {
 }
 
 -- Helpers
-
-function get_key_dir(k_pos, k_neg)
-  if love.keyboard.isDown(k_pos) then
-    return 1
-  end
-  if love.keyboard.isDown(k_neg) then
-    return -1
-  end
-  return 0
-end
 
 function copy_vector(dest, src)
   dest.x, dest.y = src.x, src.y
@@ -122,100 +110,104 @@ end
 -- Logic
 
 function process_input(dt)
-  if GS.mouse.x == 0 then
-    local dx = get_key_dir("right", "left")
-    paddle.vel.x = dx * GAME.paddle_speed
-  else
+  if GS.mouse.x ~= 0 then
     paddle.vel.x = (GS.mouse.x * GAME.sensitivity) / dt
     GS.mouse.x = 0
+  elseif love.keyboard.isDown("right") then
+    paddle.vel.x = GAME.paddle_speed
+  elseif love.keyboard.isDown("left") then
+    paddle.vel.x = -GAME.paddle_speed
+  else
+    paddle.vel.x = 0
   end
 end
 
-function constrain_paddle(dt)
-  integrate_pos(paddle.pos, paddle.vel, dt)
+function constrain_paddle()
   local max_x = GAME.width - paddle.size.x
   if paddle.pos.x < 0 then
-    paddle.pos.x, paddle.vel.x = 0, 0
+    paddle.pos.x = 0
   elseif max_x < paddle.pos.x then
-    paddle.pos.x, paddle.vel.x = max_x, 0
+    paddle.pos.x = max_x
   end
 end
 
 -- Game Loop
 
 function select_hit_obj(dt)
-  local bt, bo, bi
-  local t, n = detect(ball, paddle, dt)
-  if t then
-    bt, bo, bi = t, paddle, nil
-    copy_vector(HIT_NORMAL, n)
-  end
-  for i, b in ipairs(bricks) do
-    local tb, nb = detect(ball, b, dt)
-    if tb and (not bt or tb < bt) then
-      bt, bo, bi = tb, b, i
-      copy_vector(HIT_NORMAL, nb)
+  local best_t, best_obj, best_idx, best_n
+  for i, brick in ipairs(bricks) do
+    local t, n = detect(ball, brick, dt)
+    if t and (not best_t or t < best_t) then
+      best_t, best_obj, best_idx, best_n = t, brick, i, n
     end
   end
-  return bt, bo, bi
+  local t, n = detect(ball, paddle, dt)
+  if t and (not best_t or t < best_t) then
+    best_t, best_obj, best_idx, best_n = t, paddle, nil, n
+  end
+  return best_t, best_obj, best_idx, best_n
 end
 
-function destroy_brick(b, idx)
-  table.remove(bricks, idx)
+function destroy_brick(idx)
+  local b = bricks[idx]
   if b.is_target then
     bricks.target = bricks.target - 1
     if bricks.target == 0 then
-      GS.mode = "win"
+      GS.mode = "done"
       GS.assets.text_info:set("YOU WIN!")
       sfx.win()
     end
   end
+  table.remove(bricks, idx)
 end
 
-function process_hit(t, obj, idx, t_sim)
-  local t_hit = t_sim + t
+function process_hit(t_hit, obj, idx, normal)
   move_ball_time(t_hit)
-  bounce(ball, obj, HIT_NORMAL)
+  bounce(ball, obj, normal)
   if idx then
-    destroy_brick(obj, idx)
+    destroy_brick(idx)
   end
   sync_phys(t_hit)
 end
 
-function check_bounds(b, now)
-  local r, hit = b.radius, false
-  local max_x = GAME.width - r
-  if b.pos.x < r then
-    b.pos.x, b.vel.x, hit = r, -b.vel.x, true
-  elseif b.pos.x > max_x then
-    b.pos.x, b.vel.x, hit = max_x, -b.vel.x, true
-  end
-  if b.pos.y < r then
-    b.pos.y, b.vel.y, hit = r, -b.vel.y, true
-  end
-  if hit then
-    sync_phys(now)
-    sfx.knock()
-  end
-end
-
-function check_game_over(b)
-  if GAME.height < b.pos.y then
-    GS.mode = "over"
+function check_gameover()
+  if GAME.height < ball.pos.y then
+    GS.mode = "done"
     GS.assets.text_info:set("GAME OVER")
     sfx.gameover()
+    return true
   end
+  return false
+end
+
+function check_bounds()
+  local r = ball.radius
+  local max_x = GAME.width - r
+  if ball.pos.x < r then
+    ball.pos.x, ball.vel.x = r, -ball.vel.x
+  elseif max_x < ball.pos.x then
+    ball.pos.x, ball.vel.x = max_x, -ball.vel.x
+  elseif ball.pos.y < r then
+    ball.pos.y, ball.vel.y = r, -ball.vel.y
+  else
+    return false
+  end
+  return true
 end
 
 function update_ball(dt, now)
   sync_phys(now - dt)
-  local t, obj, idx = select_hit_obj(dt)
+  local t, obj, idx, n = select_hit_obj(dt)
   if t then
-    process_hit(t, obj, idx, now - dt)
+    process_hit((now - dt) + t, obj, idx, n)
   end
   move_ball_time(now)
-  check_bounds(ball, now)
-  check_game_over(ball)
+  if check_bounds() then
+    sync_phys(now)
+    sfx.knock()
+  elseif check_gameover() then
+    return 
+  end
 end
 
 -- Controls
@@ -225,15 +217,19 @@ function action_launch()
   ball.vel.y = -GAME.launch_speed
   ball.vel.x = paddle.vel.x + (GAME.launch_speed * dir)
   GS.mode = "play"
+  GS.assets.text_info:set("")
   sfx.beep()
 end
 
 actions = {
   start = { space = action_launch },
   play = { r = reset_round },
-  over = { space = reset_round },
-  win = { space = reset_round }
+  done = { space = reset_round }
 }
+
+for k, v in pairs(actions) do
+  v.escape = love.event.quit
+end
 
 updaters = {
   start = reset_ball_pos,
@@ -258,12 +254,10 @@ function draw_objs()
   gfx.circle("fill", ball.pos.x, ball.pos.y, ball.radius)
 end
 
-function draw_ui()
-  if GS.mode ~= "play" then
-    local ti = GS.assets.text_info
-    local tx = (GAME.width - ti:getWidth()) / 2
-    gfx.draw(ti, tx, GAME.height * 0.4)
-  end
+function draw_info()
+  local ti = GS.assets.text_info
+  local tx = (GAME.width - ti:getWidth()) / 2
+  gfx.draw(ti, tx, GAME.height * 0.4)
 end
 
 -- Main Loop
@@ -272,7 +266,8 @@ function love.update(dt)
   ensure_init()
   local now = timer.getTime()
   process_input(dt)
-  constrain_paddle(dt)
+  integrate_pos(paddle.pos, paddle.vel, dt)
+  constrain_paddle()
   if updaters[GS.mode] then
     updaters[GS.mode](dt, now)
   end
@@ -284,7 +279,7 @@ function love.draw()
     gfx.applyTransform(GS.tf)
     gfx.clear(Color[Color.black])
     draw_objs()
-    draw_ui()
+    draw_info()
     gfx.pop()
   end
 end
@@ -294,18 +289,15 @@ function love.mousemoved(_, _, dx, _)
 end
 
 function love.mousepressed(_, _, btn)
-  local act = actions[GS.mode]
-  if btn == 1 and act and act.space then
-    act.space()
+  if btn == 1 then
+    love.keypressed("space")
   end
 end
 
 function love.keypressed(k)
-  if actions[GS.mode] and actions[GS.mode][k] then
-    actions[GS.mode][k]()
-  end
-  if k == "escape" then
-    love.event.quit()
+  local act = actions[GS.mode]
+  if act and act[k] then
+    act[k]()
   end
 end
 
